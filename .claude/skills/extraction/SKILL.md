@@ -1,5 +1,5 @@
 ---
-name: ingest-content
+name: extraction
 description: >
   Extract content from PDFs and web pages. PRIMARY METHOD: Use Jina MCP read_url
   which handles PDFs, HTML, and bypasses most blocking. FALLBACK: Local scripts
@@ -8,73 +8,134 @@ description: >
 
 # Content Extraction
 
-Extract text from PDFs and web pages for analysis.
+Extract text from PDFs, web pages, and documents for analysis.
 
 ## Primary Method: Jina MCP
 
-**Use Jina for all document reading** — it handles PDFs, HTML, and bypasses blocking.
+**Always use Jina first** — it handles PDFs, HTML, bypasses blocking, and works with most sources.
 
+### Single URL
 ```
 mcp__jina__read_url:
   url: "https://www.sec.gov/Archives/edgar/data/.../document.pdf"
 ```
 
-### Jina Capabilities
+### Multiple URLs (Parallel)
+```
+mcp__jina__parallel_read_url:
+  urls:
+    - url: "https://reuters.com/..."
+    - url: "https://scmp.com/..."
+    - url: "https://ft.com/..."
+```
 
-| Content Type | Support |
-|--------------|---------|
-| PDF files | ✅ Extracts text directly |
-| HTML pages | ✅ Converts to clean Markdown |
-| SEC EDGAR filings | ✅ Works with .htm and .pdf |
-| Blocked by 403 | ✅ Usually bypasses |
+## Jina Capabilities
 
-### Examples
+| Content Type | Support | Notes |
+|--------------|---------|-------|
+| PDF files | ✅ | Extracts text directly |
+| HTML pages | ✅ | Converts to clean Markdown |
+| SEC EDGAR (.htm) | ✅ | Works with filing pages |
+| News articles | ✅ | Bypasses most paywalls |
+| Blocked by 403 | ✅ | Usually bypasses |
+| Scanned PDFs | ❌ | No OCR support |
 
-**Read a PDF:**
+## Examples
+
+### Read SEC Filing (HTML)
 ```
 mcp__jina__read_url:
-  url: "https://www.sec.gov/.../nke-20250531.pdf"
+  url: "https://www.sec.gov/Archives/edgar/data/320187/000032018725000047/nke-20250531.htm"
 ```
 
-**Read an HTML filing:**
+### Read SEC Filing (PDF)
 ```
 mcp__jina__read_url:
-  url: "https://www.sec.gov/.../nke-20250531.htm"
+  url: "https://www.sec.gov/Archives/edgar/data/320187/000032018725000047/nke-20250531.pdf"
 ```
 
-**Read investor relations page:**
+### Read News Article
 ```
 mcp__jina__read_url:
-  url: "https://investors.nike.com/.../fiscal-2025-results"
+  url: "https://www.reuters.com/business/..."
 ```
+
+### Read Investor Relations Page
+```
+mcp__jina__read_url:
+  url: "https://investors.nike.com/investors/news-events-and-reports/"
+```
+
+### Read Multiple Sources (News Research)
+```
+mcp__jina__parallel_read_url:
+  urls:
+    - url: "https://www.reuters.com/..."
+    - url: "https://www.ft.com/..."
+    - url: "https://www.scmp.com/..."
+  timeout: 30000
+```
+
+## Advanced Options
+
+### Extract All Links
+```
+mcp__jina__read_url:
+  url: "https://example.com"
+  withAllLinks: true
+```
+
+### Extract All Images
+```
+mcp__jina__read_url:
+  url: "https://example.com"
+  withAllImages: true
+```
+
+## Handling Large Documents
+
+When Jina returns truncated or very large content:
+
+### Option 1: Focus on Specific Sections
+For 10-K filings, search within the returned content for specific sections:
+- "Greater China" or "Geographic Operating Segments"
+- "Risk Factors"
+- "Management's Discussion and Analysis"
+
+### Option 2: Use Shorter Source
+Instead of full 10-K (150+ pages), use:
+- Earnings press release (2-5 pages)
+- Investor presentation (key slides)
+- 8-K filing (specific event)
+
+### Option 3: Ask User
+"The document is very large. Which section should I focus on?"
+
+## Error Handling
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| "exceeds maximum tokens" | Doc too large | Focus on specific section or use shorter source |
+| 403 Forbidden | Blocked | Jina usually bypasses; try HTML instead of PDF |
+| Empty content | Scanned PDF | Inform user OCR not supported |
+| Timeout | Slow server | Increase timeout or try alternative URL |
+| Redirect | URL changed | Follow the redirect URL provided |
 
 ## Fallback: Local Scripts
 
-If Jina MCP is unavailable, use the local extraction scripts.
+If Jina MCP is unavailable, use local extraction:
 
-### Download Script
-
+### Download PDF
 ```bash
 .claude/skills/extraction/scripts/download_pdf.sh "{url}" "{filename}.pdf"
 ```
 
-- Downloads to `temp/` directory
-- Includes browser-like headers
-- Validates PDF format (rejects HTML error pages)
-
-### Extraction Script
-
+### Extract Text
 ```bash
 python .claude/skills/extraction/scripts/extract_pdf.py temp/{filename}.pdf --output temp/{filename}.md
 ```
 
-**Options:**
-- `--output, -o`: Output file path
-- `--pages`: Page range (e.g., `1-50`)
-- `--source-url`: Original URL for metadata
-
 ### Full Local Pipeline
-
 ```bash
 # 1. Download
 .claude/skills/extraction/scripts/download_pdf.sh \
@@ -86,7 +147,7 @@ python .claude/skills/extraction/scripts/extract_pdf.py \
   temp/company_10k.pdf \
   --output temp/company_10k.md
 
-# 3. Read the result
+# 3. Read result
 # Content is now in temp/company_10k.md
 ```
 
@@ -94,23 +155,21 @@ python .claude/skills/extraction/scripts/extract_pdf.py \
 
 | Situation | Method |
 |-----------|--------|
-| Normal operation | Jina MCP (primary) |
-| Jina MCP unavailable | Local scripts (fallback) |
-| Need to save PDF locally | Local scripts |
+| Normal operation | Jina MCP |
+| Multiple sources | `parallel_read_url` |
+| Jina unavailable | Local scripts |
+| Need PDF saved locally | Local scripts |
 | Offline/air-gapped | Local scripts |
 
-## Error Handling
+## Dependencies (Local Scripts Only)
 
-| Error | Solution |
-|-------|----------|
-| Jina returns truncated content | Large doc; read specific sections |
-| 403 from SEC with curl | Use Jina instead (usually works) |
-| Invalid PDF header | URL returned HTML; try different URL or use Jina on HTML version |
-| Empty content | Scanned PDF; OCR not supported |
-
-## Dependencies
-
-**For local scripts only:**
 ```bash
 pip install pypdf pdfplumber  # pdfplumber optional for tables
 ```
+
+## Next Step
+
+After extraction, pass content to the **Analysis** skill:
+- Select appropriate schema (10-K, M&A, News Summary, etc.)
+- Extract structured data
+- Generate report

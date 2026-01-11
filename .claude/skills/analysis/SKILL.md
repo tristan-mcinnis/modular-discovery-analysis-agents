@@ -1,5 +1,5 @@
 ---
-name: generate-report
+name: analysis
 description: >
   Analyze extracted documents using predefined schemas for M&A deals, SEC filings,
   and legal agreements. Use after ingest-content has extracted text to temp/ directory.
@@ -10,24 +10,79 @@ description: >
 
 Generate structured analysis from extracted document content.
 
+## Available Schemas
+
+### Financial Document Schemas
+
+| Schema | Use Case | Location |
+|--------|----------|----------|
+| **10-K** | Annual reports, financial performance | Built-in (below) |
+| **M&A** | Merger agreements, deal terms | Built-in (below) |
+| **Proxy (DEF 14A)** | Executive comp, board info | Built-in (below) |
+
+### News & Research Schemas
+
+| Schema | Use Case | Location |
+|--------|----------|----------|
+| **News Summary** | Article wisdom extraction | `schemas/news-summary.md` |
+| **Claims Analysis** | Fact-checking, evidence evaluation | `schemas/claims-analysis.md` |
+| **Stakeholder Positions** | Multi-perspective debate analysis | `schemas/stakeholder-positions.md` |
+| **Timeline Narrative** | Chronological event analysis | `schemas/timeline-narrative.md` |
+| **Predictions** | Future outlook, forecasts | `schemas/predictions.md` |
+
+## Schema Selection Guide
+
+| User Question | Recommended Schema |
+|---------------|-------------------|
+| "Summarize this article" | News Summary |
+| "Is this claim true?" | Claims Analysis |
+| "What are the different perspectives?" | Stakeholder Positions |
+| "How did this happen?" | Timeline Narrative |
+| "What's the outlook?" | Predictions |
+| "What are the financials?" | 10-K Schema |
+| "What are the deal terms?" | M&A Schema |
+| "What's the CEO paid?" | Proxy Schema |
+
 ## Input/Output
 
-**Input:** Read extracted Markdown from `temp/{document}.md`
-**Output:** Save reports to `output/{document}_report.md` and optionally `output/{document}_report.json`
+**Input:** Read extracted content from Jina or from `temp/{document}.md`
+**Output:** Structured report to chat or file
 
-## Document Type Detection
+## Output Options
 
-Identify the document type from filename or content:
+| User Request | Action |
+|--------------|--------|
+| *(default)* | Output directly to chat |
+| "Save the report" | Write to `output/{topic}_report.md` |
+| "Save as JSON" | Write to `output/{topic}_report.json` |
+| "Save to output/" | Write to `output/` directory |
 
-| Pattern in Filename/Content | Document Type | Schema to Use |
-|-----------------------------|---------------|---------------|
-| `10-K`, `annual report` | 10-K Annual Report | 10-K Schema |
-| `10-Q`, `quarterly` | 10-Q Quarterly Report | 10-Q Schema |
-| `merger agreement`, `acquisition` | M&A Deal | M&A Schema |
-| `DEF 14A`, `proxy statement` | Proxy Statement | Proxy Schema |
-| `8-K`, `current report` | 8-K Current Report | 8-K Schema |
+### File Output Examples
 
-## Analysis Schemas
+**Markdown report:**
+```
+Write:
+  file_path: "output/nike_10k_analysis.md"
+  content: "{report content}"
+```
+
+**JSON report:**
+```
+Write:
+  file_path: "output/nike_10k_analysis.json"
+  content: "{structured JSON}"
+```
+
+### Naming Convention
+
+Use descriptive filenames:
+- `{company}_{doc_type}_report.md` — e.g., `apple_10k_report.md`
+- `{topic}_{schema}_analysis.md` — e.g., `ev_tariffs_stakeholder_analysis.md`
+- `{event}_timeline.md` — e.g., `ftx_collapse_timeline.md`
+
+---
+
+## Financial Schemas (Built-in)
 
 ### 10-K Annual Report Schema
 
@@ -126,16 +181,19 @@ Extract these fields with page references:
 }
 ```
 
-## Output Format
+---
+
+## Output Format Template
 
 ### Markdown Report Template
 
 ```markdown
 # Analysis: {Document Name}
 
-**Document Type:** {10-K / Merger Agreement / Proxy Statement}
-**Company:** {Company Name}
-**Period:** {Fiscal Year / Transaction Date}
+**Document Type:** {Type}
+**Source:** {Company/Publication}
+**Period/Date:** {Date}
+**Schema Used:** {Schema name}
 **Analyzed:** {Current Date}
 
 ---
@@ -146,25 +204,19 @@ Extract these fields with page references:
 
 ## Key Metrics
 
-| Metric | Value | Page Reference |
-|--------|-------|----------------|
-| Revenue | $51.4B | 45 |
-| Net Income | $5.7B | 47 |
-| YoY Change | -2.3% | 45 |
+| Metric | Value | Context |
+|--------|-------|---------|
+| {metric} | {value} | {comparison/change} |
 
 ## Detailed Findings
 
-### {Section 1: e.g., Financial Performance}
+### {Section 1}
 
-{Key observations with specific numbers and page references}
+{Key observations with specific numbers and references}
 
-### {Section 2: e.g., Geographic Segments}
+### {Section 2}
 
-{Breakdown by region with trends}
-
-### {Section 3: e.g., Risk Factors}
-
-{Top risks identified in the filing}
+{Additional findings}
 
 ---
 
@@ -175,29 +227,43 @@ Extract these fields with page references:
 
 ## Source
 
-- **Document:** {filename.pdf}
-- **Pages Analyzed:** {1-150}
+- **Document:** {filename or URL}
 - **Extraction Date:** {Date}
 ```
 
+---
+
 ## Analysis Process
 
-1. **Read the extracted Markdown** from `temp/{document}.md`
-2. **Identify document type** from filename or content
-3. **Select appropriate schema** from above
-4. **Extract each field** with page references where possible
-5. **Flag missing data** explicitly rather than guessing
-6. **Generate both formats:**
-   - `output/{document}_report.md` — Human-readable
-   - `output/{document}_report.json` — Structured data (optional)
+1. **Identify content type**: News article? SEC filing? Multiple sources?
+2. **Select appropriate schema**: Match question to schema (see guide above)
+3. **Read the schema file**: For news schemas, read from `schemas/` directory
+4. **Extract each field**: Follow the schema structure precisely
+5. **Flag missing data**: Explicitly note "not found" rather than guessing
+6. **Generate report**: Use markdown template above
 
 ## Quality Checklist
 
 Before delivering the report:
 
+- [ ] Correct schema selected for content type
 - [ ] All schema fields have values or explicit "not found"
 - [ ] Numbers include units (USD, %, etc.)
 - [ ] Dates in ISO format (YYYY-MM-DD)
-- [ ] Page references for key data points
+- [ ] Sources cited for all facts
 - [ ] Executive summary captures main insights
 - [ ] Caveats noted for uncertain or missing data
+
+## Combining Schemas
+
+For complex research, you may need multiple schemas:
+
+**Example: Company crisis analysis**
+1. **Timeline Narrative**: What happened and when
+2. **Stakeholder Positions**: How different parties reacted
+3. **Predictions**: What analysts say will happen next
+
+**Example: Policy change impact**
+1. **News Summary**: What the policy is
+2. **Claims Analysis**: Are the stated benefits real?
+3. **Stakeholder Positions**: Who supports/opposes

@@ -1,74 +1,128 @@
 # Modular Discovery & Analysis Agent (MDAA)
 
-A Claude Code skills-based system for autonomous financial and legal document research. MDAA finds documents, extracts their content, and generates structured analysis reports — all without heavy browser automation.
+A Claude Code skills-based deep research system. MDAA finds documents and news, extracts content, and generates structured analysis reports using Fabric-inspired schemas.
 
 ## What Does This Do?
 
-MDAA automates the tedious process of:
+MDAA automates deep research across two domains:
 
-1. **Finding** official documents (SEC filings, merger agreements, annual reports)
-2. **Downloading** and extracting text from PDFs
-3. **Analyzing** the content and producing structured reports
+### Financial Documents
+- SEC filings (10-K, 10-Q, 8-K, DEF 14A, S-1)
+- Merger agreements, proxy statements
+- Earnings releases, investor presentations
 
-Instead of manually searching SEC.gov, downloading PDFs, and reading through hundreds of pages, you simply ask Claude:
-
-> "Find and analyze the Microsoft 10-K filing for 2024"
-
-And MDAA handles the rest.
+### News & Current Events
+- Multi-language sources (English, Chinese, Japanese, Korean)
+- Source quality filtering (Tier 1/2/3)
+- Multiple perspectives on controversial topics
 
 ## How It Works
 
-MDAA uses a **three-skill loop**:
-
 ```
-┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Discovery     │────▶│   Extraction    │────▶│    Analysis     │
-│                 │     │                 │     │                 │
-│ Serper search   │     │ curl + pypdf    │     │ Schema-based    │
-│ → Verified URL  │     │ → Markdown      │     │ → JSON report   │
-└─────────────────┘     └─────────────────┘     └─────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                        RESEARCH FLOW                             │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
+│  │  DISCOVER    │───▶│   EXTRACT    │───▶│   ANALYZE    │       │
+│  └──────────────┘    └──────────────┘    └──────────────┘       │
+│         │                   │                   │                │
+│    ┌────┴────┐              │            ┌──────┴──────┐         │
+│    │         │              │            │             │         │
+│ Financial  News         Jina MCP     Financial    News          │
+│  (SEC)   (Multi-lang)    read_url    Schemas    Schemas         │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Prerequisites
 
 - **Claude Code** installed and configured
-- **Serper MCP** server connected (for web search)
-- **Python 3.8+** installed
+- **Jina MCP** server connected (primary extraction)
+- **Serper MCP** server connected (financial document search)
+- **Python 3.8+** (for fallback scripts only)
 
 ## Installation
 
-### 1. Install Python Dependencies
+### 1. Install Python Dependencies (Optional)
+
+Only needed for fallback local extraction:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Verify Serper MCP
+### 2. Verify MCP Servers
 
-The discovery skill requires Serper MCP for web search. Check your Claude Code MCP configuration.
+Check your Claude Code MCP configuration for:
+- `jina` — Primary search and extraction
+- `serper` — Financial document search
 
 ### 3. Ready to Use
 
-The skills are automatically available. Just ask Claude to research a document.
+The skills are automatically available. Just ask Claude to research something.
 
 ## Usage Examples
 
-### Find and Analyze a 10-K
+### Financial Research
 
 ```
-Find and analyze the Apple 10-K for 2024
+Find Apple's latest 10-K and summarize their services segment
 ```
 
-### Research a Merger Agreement
-
 ```
-Find the Microsoft-Activision merger agreement and extract the key terms
+Get the Microsoft-Activision merger agreement and extract deal terms
 ```
 
-### Get a Proxy Statement
+```
+What does Nike's proxy statement say about CEO compensation?
+```
+
+### News Research
 
 ```
-Get Amazon's 2024 proxy statement and summarize executive compensation
+What are Chinese and Western media saying about the new EV tariffs?
+```
+
+```
+Find coverage of the Fed rate decision from Reuters and Bloomberg
+```
+
+```
+Search Japanese sources for news about Toyota's EV strategy
+```
+
+### Analysis Types
+
+```
+Is it true that Apple is moving production out of China? Fact-check this.
+```
+
+```
+How did the FTX collapse unfold? Give me a timeline.
+```
+
+```
+What are analysts predicting for AI chip demand in 2025?
+```
+
+## Output Options
+
+MDAA supports flexible output:
+
+| Request | Behavior |
+|---------|----------|
+| *(default)* | Output directly to chat |
+| "Save the report" | Writes to `output/{topic}_report.md` |
+| "Save as JSON" | Writes to `output/{topic}_report.json` |
+| "Save to output/" | Writes to `output/` directory |
+
+### Examples
+
+```
+Find Nike's 10-K and save the report to output/
+```
+
+```
+Analyze the Tesla news and save as JSON
 ```
 
 ## Project Structure
@@ -76,121 +130,133 @@ Get Amazon's 2024 proxy statement and summarize executive compensation
 ```
 modular-discovery-analysis-agents/
 ├── .claude/skills/
-│   ├── discovery/
-│   │   └── SKILL.md              # Document search via Serper
-│   ├── extraction/
-│   │   ├── SKILL.md              # PDF download and extraction
-│   │   └── scripts/
-│   │       ├── download_pdf.sh   # curl wrapper with headers
-│   │       └── extract_pdf.py    # PDF to Markdown converter
-│   ├── analysis/
-│   │   └── SKILL.md              # Schema-based report generation
-│   └── research-flow/
-│       └── SKILL.md              # Pipeline orchestration
-├── temp/                         # Downloaded PDFs and extracted text
-├── output/                       # Generated reports
-├── requirements.txt
+│   ├── research-flow/SKILL.md        # Pipeline orchestrator
+│   ├── discover-financial/SKILL.md   # SEC filings, financial docs
+│   ├── discover-news/SKILL.md        # News with source/language filters
+│   ├── extraction/SKILL.md           # Jina-first content extraction
+│   └── analysis/
+│       ├── SKILL.md                  # Schema selector
+│       └── schemas/
+│           ├── news-summary.md       # Article wisdom extraction
+│           ├── claims-analysis.md    # Fact-checking (A-F ratings)
+│           ├── stakeholder-positions.md  # Multi-perspective analysis
+│           ├── timeline-narrative.md # Chronological + causal
+│           └── predictions.md        # Future outlook extraction
+├── temp/                             # Intermediate files
+├── output/                           # Generated reports
+├── CLAUDE.md                         # Agent instructions
 └── README.md
 ```
 
-## The Four Skills
+## Skills Reference
 
-### discover-document
+### discover-financial
 
-Finds official PDFs using Serper MCP search.
+Finds official financial documents via Serper MCP.
 
-- Prioritizes trusted domains (sec.gov, .gov, IR sites)
-- Uses `filetype:pdf` for direct links
-- Returns confidence-scored URLs
+- Prioritizes `sec.gov` and official IR sites
+- Supports 10-K, 10-Q, 8-K, DEF 14A, S-1, 20-F
+- Returns verified URLs for extraction
 
-### ingest-content
+### discover-news
 
-Downloads and extracts PDF content.
+Finds news articles with language and source filtering.
 
-**Scripts included:**
-- `scripts/download_pdf.sh` — Downloads with browser headers
-- `scripts/extract_pdf.py` — Converts PDF to Markdown
+**Source Tiers:**
+| Tier | Sources |
+|------|---------|
+| Tier 1 | reuters.com, bloomberg.com, ft.com, caixinglobal.com, scmp.com, nikkei.com |
+| Tier 2 | theguardian.com, bbc.com, cnbc.com, globaltimes.cn |
+| Tier 3 | General web (use with caution) |
 
-### generate-report
+**Language Support:**
+| Language | Example Sources |
+|----------|-----------------|
+| Chinese | caixin.com, 36kr.com, sina.com.cn |
+| Japanese | nikkei.com, nhk.or.jp, asahi.com |
+| Korean | chosun.com, koreaherald.com |
 
-Analyzes content using predefined schemas:
+### extraction
 
-- **M&A Deal** — Deal value, termination fees, provisions
-- **10-K** — Revenue, risks, segments
-- **Proxy Statement** — Compensation, board, proposals
+Extracts content using Jina MCP (primary) or local scripts (fallback).
 
-### research-flow
+- Handles PDFs, HTML, and most paywalls
+- Supports parallel extraction for multiple sources
+- Falls back to local pypdf for offline use
 
-Orchestrates all three skills for end-to-end research.
+### analysis
 
-## Output Examples
+Applies structured schemas to extracted content.
 
-### JSON Report
+**Financial Schemas:**
+- 10-K — Revenue, segments, risks, key metrics
+- M&A — Deal value, terms, conditions
+- Proxy — Executive comp, board, proposals
 
-```json
-{
-  "metadata": {
-    "document": "MSFT_ATVI_merger.pdf",
-    "type": "merger_agreement",
-    "confidence": "high"
-  },
-  "data": {
-    "deal_summary": {
-      "acquirer": "Microsoft Corporation",
-      "target": "Activision Blizzard, Inc.",
-      "deal_value": 68700000000
-    },
-    "key_provisions": {
-      "termination_fee_target": 2270000000,
-      "governing_law": "Delaware"
-    }
-  }
-}
-```
+**News/Research Schemas:**
+- News Summary — Key developments, quotes, facts
+- Claims Analysis — Evidence for/against, A-F rating
+- Stakeholder Positions — Multi-perspective with agreements/disagreements
+- Timeline Narrative — Chronological events with causal analysis
+- Predictions — Forecasts with confidence levels
 
-### Markdown Report
+## Analysis Schema Selection
 
-```markdown
-# Analysis: Microsoft-Activision Merger
-
-## Summary
-Microsoft to acquire Activision Blizzard for $68.7B in all-cash deal.
-
-## Key Metrics
-| Metric | Value | Page |
-|--------|-------|------|
-| Deal Value | $68.7B | 3 |
-| Termination Fee | $2.27B | 67 |
-```
+| Question Type | Schema |
+|---------------|--------|
+| "Summarize the financials" | 10-K |
+| "What are the deal terms?" | M&A |
+| "Summarize this article" | News Summary |
+| "Is this claim true?" | Claims Analysis |
+| "What are the perspectives?" | Stakeholder Positions |
+| "How did this unfold?" | Timeline Narrative |
+| "What's the outlook?" | Predictions |
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
-| No search results | Broaden query, remove year |
-| 403 when downloading | Fallback headers auto-applied |
-| Empty PDF extraction | May be scanned; OCR not supported |
-| Wrong schema applied | Specify document type in request |
+| No search results | Broaden query, try different terms |
+| 403 when reading | Jina usually bypasses; try HTML instead of PDF |
+| Content too long | Ask for specific section or use shorter source |
+| Empty extraction | May be scanned PDF; OCR not supported |
+| Conflicting info | Use Stakeholder Positions schema |
 
 ## Extending MDAA
 
-### Add a New Schema
+### Add a New Analysis Schema
 
-Edit `.claude/skills/analysis/SKILL.md` and add your schema under "Available Schemas".
+1. Create `.claude/skills/analysis/schemas/your-schema.md`
+2. Add entry to `.claude/skills/analysis/SKILL.md` schema table
+3. Add trigger phrases to `CLAUDE.md`
 
-### Add Trusted Domains
+### Add Trusted News Sources
 
-Edit `.claude/skills/discovery/SKILL.md` and update the domain list.
+Edit `.claude/skills/discover-news/SKILL.md` and update the source tiers.
+
+### Add Financial Document Types
+
+Edit `.claude/skills/discover-financial/SKILL.md` and add search templates.
 
 ## Design Principles
 
-- **No browser automation** — Direct downloads via curl
-- **Trusted sources** — Prioritize official domains
-- **Structured output** — Schema-driven analysis
-- **Modular skills** — Each skill does one thing well
+- **Jina-first extraction** — Handles PDFs, HTML, and bypasses blocking
+- **Source quality tiers** — Prioritize credible sources
+- **Multi-perspective** — Get both sides of controversial topics
+- **Structured output** — Fabric-inspired analysis schemas
+- **Flexible output** — Chat, Markdown files, or JSON
+
+## Credits
+
+Analysis schemas inspired by [Fabric](https://github.com/danielmiessler/Fabric) patterns:
+- `extract_article_wisdom`
+- `analyze_claims`
+- `analyze_debate`
+- `extract_predictions`
 
 ## Resources
 
-- [Anthropic Agent Skills](https://github.com/anthropics/skills)
-- [SEC EDGAR](https://www.sec.gov/edgar/searchedgar/companysearch)
-- [Serper API](https://serper.dev)
+- [Claude Code Skills](https://docs.anthropic.com/claude-code)
+- [Jina AI](https://jina.ai)
+- [SEC EDGAR](https://www.sec.gov/edgar)
+- [Fabric Patterns](https://github.com/danielmiessler/Fabric)
