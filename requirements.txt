@@ -1,0 +1,17 @@
+# MDAA - Modular Discovery & Analysis Agent
+# Python dependencies for PDF extraction
+
+# Core PDF processing
+pypdf>=4.0.0          # Basic PDF operations, text extraction
+pdfplumber>=0.10.0    # Advanced table extraction
+
+# Optional: Enhanced PDF processing
+# pymupdf>=1.23.0     # Alternative PDF library (faster for some operations)
+# pdf2image>=1.16.0   # Convert PDF pages to images (for OCR fallback)
+# pytesseract>=0.3.10 # OCR for scanned PDFs (requires tesseract installed)
+
+# Data processing
+pandas>=2.0.0         # Table data manipulation
+
+# HTTP requests (for direct downloads when curl isn't available)
+requests>=2.31.0
