@@ -1,179 +1,203 @@
 ---
 name: generate-report
-description: Analyze extracted documents using predefined schemas for M&A deals, SEC filings, and legal agreements. Use after ingest-content has extracted text to temp/ directory.
+description: >
+  Analyze extracted documents using predefined schemas for M&A deals, SEC filings,
+  and legal agreements. Use after ingest-content has extracted text to temp/ directory.
+  Outputs structured JSON and human-readable Markdown reports to output/ directory.
 ---
 
-# Report Generation Skill
+# Document Analysis
 
 Generate structured analysis from extracted document content.
 
-## Quick Reference
+## Input/Output
 
-### Input
+**Input:** Read extracted Markdown from `temp/{document}.md`
+**Output:** Save reports to `output/{document}_report.md` and optionally `output/{document}_report.json`
 
-Read extracted Markdown from `temp/` directory:
+## Document Type Detection
 
-```
-temp/{document_name}.md
-```
+Identify the document type from filename or content:
 
-### Output
+| Pattern in Filename/Content | Document Type | Schema to Use |
+|-----------------------------|---------------|---------------|
+| `10-K`, `annual report` | 10-K Annual Report | 10-K Schema |
+| `10-Q`, `quarterly` | 10-Q Quarterly Report | 10-Q Schema |
+| `merger agreement`, `acquisition` | M&A Deal | M&A Schema |
+| `DEF 14A`, `proxy statement` | Proxy Statement | Proxy Schema |
+| `8-K`, `current report` | 8-K Current Report | 8-K Schema |
 
-Save reports to `output/` directory:
+## Analysis Schemas
 
-```
-output/{document_name}_report.json
-output/{document_name}_report.md
-```
+### 10-K Annual Report Schema
 
-## Available Schemas
-
-### 1. M&A Deal Analysis
-
-For merger agreements and acquisition documents.
-
-```json
-{
-  "deal_summary": {
-    "acquirer": "Company Name",
-    "target": "Company Name",
-    "deal_type": "merger|acquisition|asset_purchase",
-    "announcement_date": "YYYY-MM-DD"
-  },
-  "financial_terms": {
-    "deal_value": 0,
-    "price_per_share": 0,
-    "premium_percentage": 0,
-    "cash_component": 0,
-    "stock_component": 0
-  },
-  "key_provisions": {
-    "termination_fee_target": 0,
-    "termination_fee_acquirer": 0,
-    "go_shop_period_days": null,
-    "material_adverse_change": true
-  },
-  "governing_law": "State"
-}
-```
-
-### 2. 10-K Annual Report
-
-For SEC 10-K filings.
+Extract these fields with page references:
 
 ```json
 {
   "company": {
     "name": "Company Name",
     "ticker": "TICK",
-    "fiscal_year_end": "YYYY-MM-DD"
+    "fiscal_year_end": "2024-05-31"
   },
   "financials": {
-    "revenue": 0,
-    "revenue_yoy_change": 0,
-    "net_income": 0,
-    "total_assets": 0,
-    "total_debt": 0,
-    "cash": 0
+    "revenue": 51362000000,
+    "revenue_yoy_change_pct": -2.3,
+    "net_income": 5700000000,
+    "total_assets": 38000000000,
+    "total_debt": 9500000000,
+    "cash_and_equivalents": 7900000000
   },
-  "risk_factors": ["risk 1", "risk 2"],
-  "business_segments": [
-    {"name": "Segment", "revenue": 0, "percentage": 0}
-  ]
+  "segments": [
+    {"name": "North America", "revenue": 21500000000, "pct_of_total": 42},
+    {"name": "Greater China", "revenue": 7500000000, "pct_of_total": 15}
+  ],
+  "risk_factors": [
+    "Competition from domestic brands in China",
+    "Foreign currency fluctuations",
+    "Supply chain disruptions"
+  ],
+  "key_metrics": {
+    "gross_margin_pct": 44.6,
+    "operating_margin_pct": 12.1,
+    "employees": 83700
+  }
 }
 ```
 
-### 3. Proxy Statement (DEF 14A)
+### M&A Deal Schema
 
-For proxy statements.
+```json
+{
+  "deal_summary": {
+    "acquirer": "Company A",
+    "target": "Company B",
+    "deal_type": "merger",
+    "announcement_date": "2024-01-15"
+  },
+  "financial_terms": {
+    "deal_value": 20000000000,
+    "price_per_share": 85.50,
+    "premium_pct": 35,
+    "cash_component": 10000000000,
+    "stock_component": 10000000000
+  },
+  "key_provisions": {
+    "termination_fee_target": 750000000,
+    "termination_fee_acquirer": 1500000000,
+    "go_shop_period_days": 45,
+    "outside_date": "2025-06-30"
+  },
+  "conditions": [
+    "Shareholder approval",
+    "Regulatory approval",
+    "No material adverse change"
+  ],
+  "governing_law": "Delaware"
+}
+```
+
+### Proxy Statement (DEF 14A) Schema
 
 ```json
 {
   "meeting": {
-    "date": "YYYY-MM-DD",
-    "type": "annual|special"
+    "date": "2024-09-15",
+    "type": "annual"
   },
   "executive_compensation": {
-    "ceo_name": "Name",
-    "ceo_total": 0,
-    "executives": [
-      {"name": "Name", "title": "Title", "total": 0}
+    "ceo_name": "John Smith",
+    "ceo_total_compensation": 25000000,
+    "named_executives": [
+      {"name": "Jane Doe", "title": "CFO", "total": 12000000},
+      {"name": "Bob Wilson", "title": "COO", "total": 11000000}
     ]
   },
   "board": {
-    "total_directors": 0,
-    "independent": 0,
-    "new_nominees": ["Name"]
+    "total_directors": 12,
+    "independent_directors": 10,
+    "new_nominees": ["Alice Johnson"]
   },
   "proposals": [
-    {"number": 1, "title": "Title", "recommendation": "FOR|AGAINST"}
+    {"number": 1, "title": "Election of Directors", "recommendation": "FOR"},
+    {"number": 2, "title": "Advisory Vote on Executive Compensation", "recommendation": "FOR"},
+    {"number": 3, "title": "Ratification of Auditors", "recommendation": "FOR"}
   ]
 }
 ```
 
-## Analysis Steps
+## Output Format
 
-1. **Identify document type** from filename or content
-2. **Select appropriate schema** from above
-3. **Extract each field** with page reference
-4. **Flag missing data** rather than guessing
-5. **Output both JSON and Markdown**
-
-## Output Templates
-
-### JSON Output
-
-```json
-{
-  "metadata": {
-    "document": "filename.pdf",
-    "type": "merger_agreement",
-    "analyzed": "YYYY-MM-DD",
-    "confidence": "high"
-  },
-  "data": {
-    // Schema fields here
-  },
-  "page_references": {
-    "deal_value": 3,
-    "termination_fee": 67
-  },
-  "notes": ["Any caveats or missing data"]
-}
-```
-
-### Markdown Output
+### Markdown Report Template
 
 ```markdown
-# Analysis: [Document Name]
+# Analysis: {Document Name}
 
-## Summary
-[2-3 sentence overview]
+**Document Type:** {10-K / Merger Agreement / Proxy Statement}
+**Company:** {Company Name}
+**Period:** {Fiscal Year / Transaction Date}
+**Analyzed:** {Current Date}
+
+---
+
+## Executive Summary
+
+{2-3 sentence overview of key findings}
 
 ## Key Metrics
-| Metric | Value | Page |
-|--------|-------|------|
-| Deal Value | $X.XB | 3 |
 
-## Details
-[Detailed findings by section]
+| Metric | Value | Page Reference |
+|--------|-------|----------------|
+| Revenue | $51.4B | 45 |
+| Net Income | $5.7B | 47 |
+| YoY Change | -2.3% | 45 |
+
+## Detailed Findings
+
+### {Section 1: e.g., Financial Performance}
+
+{Key observations with specific numbers and page references}
+
+### {Section 2: e.g., Geographic Segments}
+
+{Breakdown by region with trends}
+
+### {Section 3: e.g., Risk Factors}
+
+{Top risks identified in the filing}
+
+---
 
 ## Notes
-- [Any missing or uncertain data]
+
+- {Any caveats or missing data}
+- {Assumptions made during analysis}
+
+## Source
+
+- **Document:** {filename.pdf}
+- **Pages Analyzed:** {1-150}
+- **Extraction Date:** {Date}
 ```
 
+## Analysis Process
+
+1. **Read the extracted Markdown** from `temp/{document}.md`
+2. **Identify document type** from filename or content
+3. **Select appropriate schema** from above
+4. **Extract each field** with page references where possible
+5. **Flag missing data** explicitly rather than guessing
+6. **Generate both formats:**
+   - `output/{document}_report.md` — Human-readable
+   - `output/{document}_report.json` — Structured data (optional)
+
 ## Quality Checklist
+
+Before delivering the report:
 
 - [ ] All schema fields have values or explicit "not found"
 - [ ] Numbers include units (USD, %, etc.)
 - [ ] Dates in ISO format (YYYY-MM-DD)
 - [ ] Page references for key data points
-- [ ] Confidence reflects completeness
-
-## Integration
-
-This is the final step in the pipeline:
-
-```
-discover-document → ingest-content → generate-report → [output/*.json, output/*.md]
-```
+- [ ] Executive summary captures main insights
+- [ ] Caveats noted for uncertain or missing data

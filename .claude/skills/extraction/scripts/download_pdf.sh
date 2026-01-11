@@ -64,7 +64,10 @@ if [ -f "$OUTPUT_PATH" ]; then
     if head -c 4 "$OUTPUT_PATH" | grep -q "%PDF"; then
         echo "Validation: Valid PDF header detected"
     else
-        echo "Warning: File may not be a valid PDF"
+        echo "Error: Downloaded file is not a valid PDF (may be HTML error page)"
+        echo "First 100 bytes: $(head -c 100 "$OUTPUT_PATH" | tr '\n' ' ')"
+        rm -f "$OUTPUT_PATH"
+        exit 1
     fi
 else
     echo "Error: Download failed"

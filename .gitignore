@@ -33,3 +33,6 @@ Thumbs.db
 # Keep directory structure
 !temp/.gitkeep
 !output/.gitkeep
+
+# Test artifacts
+tests/

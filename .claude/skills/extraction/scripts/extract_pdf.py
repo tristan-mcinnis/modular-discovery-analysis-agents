@@ -18,6 +18,7 @@ from typing import Optional
 
 try:
     from pypdf import PdfReader
+    from pypdf.errors import PdfStreamError, PdfReadError
 except ImportError:
     print("Error: pypdf not installed. Run: pip install pypdf")
     sys.exit(1)
@@ -26,7 +27,25 @@ try:
     import pdfplumber
 except ImportError:
     pdfplumber = None
-    print("Warning: pdfplumber not installed. Table extraction disabled.")
+
+
+def validate_pdf(pdf_path: Path) -> tuple[bool, str]:
+    """Validate that a file is a readable PDF. Returns (is_valid, error_message)."""
+    try:
+        # Check magic bytes first
+        with open(pdf_path, "rb") as f:
+            header = f.read(8)
+            if not header.startswith(b"%PDF"):
+                return False, f"Invalid PDF header (got: {header[:20]!r})"
+
+        # Try to open with pypdf
+        reader = PdfReader(str(pdf_path))
+        _ = len(reader.pages)  # Force reading page count
+        return True, ""
+    except (PdfStreamError, PdfReadError) as e:
+        return False, f"Corrupted or invalid PDF: {e}"
+    except Exception as e:
+        return False, f"Failed to read PDF: {e}"
 
 
 def extract_text_pypdf(pdf_path: Path, page_range: Optional[tuple] = None) -> str:
@@ -191,6 +210,21 @@ def main():
     if not input_path.suffix.lower() == ".pdf":
         print(f"Warning: File may not be a PDF: {input_path}")
 
+    # Validate PDF before processing
+    is_valid, error_msg = validate_pdf(input_path)
+    if not is_valid:
+        print(f"Error: {error_msg}")
+        sys.exit(1)
+
+    # Warn if --tables-only but pdfplumber not available
+    if args.tables_only and pdfplumber is None:
+        print("Error: --tables-only requires pdfplumber. Install with: pip install pdfplumber")
+        sys.exit(1)
+
+    # Print pdfplumber status
+    if pdfplumber is None:
+        print("Note: pdfplumber not installed. Table extraction disabled.")
+
     # Parse page range
     page_range = parse_page_range(args.pages) if args.pages else None
 
@@ -228,6 +262,9 @@ def main():
         output_path = Path(args.output)
     else:
         output_path = input_path.with_suffix(".md")
+
+    # Create parent directories if needed
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Write markdown output
     output_path.write_text(markdown_output, encoding="utf-8")

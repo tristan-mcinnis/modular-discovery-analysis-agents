@@ -1,154 +1,116 @@
 ---
 name: ingest-content
-description: Low-token document extraction skill. Downloads PDFs via curl and converts to clean Markdown using pypdf/pdfplumber. Use after discover-document returns a validated PDF URL.
+description: >
+  Extract content from PDFs and web pages. PRIMARY METHOD: Use Jina MCP read_url
+  which handles PDFs, HTML, and bypasses most blocking. FALLBACK: Local scripts
+  for offline use. Use as Step 2 of research-flow after discovering a document URL.
 ---
 
-# Content Extraction Skill
+# Content Extraction
 
-Extract PDF content to clean Markdown without browser overhead.
+Extract text from PDFs and web pages for analysis.
 
-## Scripts
+## Primary Method: Jina MCP
 
-This skill includes two scripts in the `scripts/` directory:
+**Use Jina for all document reading** — it handles PDFs, HTML, and bypasses blocking.
 
-| Script | Purpose | When to Use |
-|--------|---------|-------------|
-| `download_pdf.sh` | Download PDFs with browser headers | When you have a URL to download |
-| `extract_pdf.py` | Convert PDF to Markdown | After downloading a PDF |
-
-## Quick Reference
-
-### Download a PDF
-
-```bash
-.claude/skills/extraction/scripts/download_pdf.sh "https://example.com/doc.pdf" "output_name.pdf"
+```
+mcp__jina__read_url:
+  url: "https://www.sec.gov/Archives/edgar/data/.../document.pdf"
 ```
 
-### Extract to Markdown
+### Jina Capabilities
 
-```bash
-python .claude/skills/extraction/scripts/extract_pdf.py temp/document.pdf --output temp/document.md
+| Content Type | Support |
+|--------------|---------|
+| PDF files | ✅ Extracts text directly |
+| HTML pages | ✅ Converts to clean Markdown |
+| SEC EDGAR filings | ✅ Works with .htm and .pdf |
+| Blocked by 403 | ✅ Usually bypasses |
+
+### Examples
+
+**Read a PDF:**
+```
+mcp__jina__read_url:
+  url: "https://www.sec.gov/.../nke-20250531.pdf"
 ```
 
-### Full Pipeline
+**Read an HTML filing:**
+```
+mcp__jina__read_url:
+  url: "https://www.sec.gov/.../nke-20250531.htm"
+```
+
+**Read investor relations page:**
+```
+mcp__jina__read_url:
+  url: "https://investors.nike.com/.../fiscal-2025-results"
+```
+
+## Fallback: Local Scripts
+
+If Jina MCP is unavailable, use the local extraction scripts.
+
+### Download Script
+
+```bash
+.claude/skills/extraction/scripts/download_pdf.sh "{url}" "{filename}.pdf"
+```
+
+- Downloads to `temp/` directory
+- Includes browser-like headers
+- Validates PDF format (rejects HTML error pages)
+
+### Extraction Script
+
+```bash
+python .claude/skills/extraction/scripts/extract_pdf.py temp/{filename}.pdf --output temp/{filename}.md
+```
+
+**Options:**
+- `--output, -o`: Output file path
+- `--pages`: Page range (e.g., `1-50`)
+- `--source-url`: Original URL for metadata
+
+### Full Local Pipeline
 
 ```bash
 # 1. Download
-.claude/skills/extraction/scripts/download_pdf.sh "https://sec.gov/filing.pdf" "AAPL_10K.pdf"
+.claude/skills/extraction/scripts/download_pdf.sh \
+  "https://www.sec.gov/.../document.pdf" \
+  "company_10k.pdf"
 
 # 2. Extract
-python .claude/skills/extraction/scripts/extract_pdf.py temp/AAPL_10K.pdf --output temp/AAPL_10K.md
+python .claude/skills/extraction/scripts/extract_pdf.py \
+  temp/company_10k.pdf \
+  --output temp/company_10k.md
+
+# 3. Read the result
+# Content is now in temp/company_10k.md
 ```
 
-## Download Script Details
+## When to Use Each Method
 
-**File:** `scripts/download_pdf.sh`
-
-Downloads PDFs using curl with browser-like headers to avoid basic bot blocking.
-
-```bash
-# Usage
-./scripts/download_pdf.sh <url> [output_filename]
-
-# Examples
-./scripts/download_pdf.sh "https://sec.gov/document.pdf"
-./scripts/download_pdf.sh "https://sec.gov/document.pdf" "custom_name.pdf"
-```
-
-**Features:**
-- Follows redirects (`-L`)
-- Browser User-Agent header
-- Google referrer header
-- PDF validation after download
-- Outputs to `temp/` directory by default
-
-## Extraction Script Details
-
-**File:** `scripts/extract_pdf.py`
-
-Converts PDF files to clean Markdown with table extraction.
-
-```bash
-# Usage
-python scripts/extract_pdf.py <input.pdf> [options]
-
-# Options
---output, -o     Output file path (default: input.md)
---pages          Page range to extract (e.g., "1-10")
---tables-only    Extract only tables, skip body text
---json-tables    Also output tables as JSON
---source-url     Original URL for metadata
-```
-
-**Examples:**
-
-```bash
-# Basic extraction
-python scripts/extract_pdf.py temp/filing.pdf
-
-# Specific pages with JSON tables
-python scripts/extract_pdf.py temp/filing.pdf --pages 1-20 --json-tables
-
-# Custom output location
-python scripts/extract_pdf.py temp/filing.pdf --output output/report.md
-```
-
-## Output Format
-
-Extracted Markdown follows this structure:
-
-```markdown
-# Document: filename.pdf
-
-## Metadata
-- **Source URL**: https://...
-- **Pages**: 45
-- **Extracted**: 2024-01-15 10:30:00
-
----
-
-## Content
-
-[Extracted text with page markers]
-
---- Page 1 ---
-
-[Page 1 content...]
-
---- Page 2 ---
-
-[Page 2 content...]
-
----
-
-## Tables
-
-### Table 1 (Page 5)
-| Column A | Column B |
-|----------|----------|
-| Value 1  | Value 2  |
-```
+| Situation | Method |
+|-----------|--------|
+| Normal operation | Jina MCP (primary) |
+| Jina MCP unavailable | Local scripts (fallback) |
+| Need to save PDF locally | Local scripts |
+| Offline/air-gapped | Local scripts |
 
 ## Error Handling
 
-| Error | Cause | Solution |
-|-------|-------|----------|
-| HTTP 403 | Bot blocking | Script includes fallback headers automatically |
-| HTTP 404 | URL expired | Re-run discovery skill for fresh URL |
-| Empty output | Scanned PDF | Inform user; OCR not currently supported |
-| Encoding error | Non-UTF8 | Script handles with `errors='ignore'` |
+| Error | Solution |
+|-------|----------|
+| Jina returns truncated content | Large doc; read specific sections |
+| 403 from SEC with curl | Use Jina instead (usually works) |
+| Invalid PDF header | URL returned HTML; try different URL or use Jina on HTML version |
+| Empty content | Scanned PDF; OCR not supported |
 
 ## Dependencies
 
-Requires Python packages (install via `pip install -r requirements.txt`):
-
-- `pypdf` — Text extraction
-- `pdfplumber` — Table extraction
-
-## Integration
-
-After extraction, the Markdown file is ready for the `generate-report` skill:
-
-```
-discover-document → [URL] → ingest-content → [temp/*.md] → generate-report
+**For local scripts only:**
+```bash
+pip install pypdf pdfplumber  # pdfplumber optional for tables
 ```
